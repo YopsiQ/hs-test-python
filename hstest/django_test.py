@@ -15,36 +15,72 @@ from hstest.test_case import TestCase
 class DjangoTest(StageTest):
 
     _kill = os.kill
+    port = '0'
+    tryout_ports = ['8000', '8001', '8002', '8003', '8004']
     process = None
 
     def run(self):
         if self.process is None:
-            self.process = subprocess.Popen([self.file_to_test, 'runserver'])
+            self.__find_free_port()
+            self.process = subprocess.Popen([
+                self.file_to_test,
+                'runserver', self.port, '--noreload',
+            ])
+
+    def check_server(self):
+        if self.port == '0':
+            return CheckResult.false(
+                f'Please free one of the ports: {", ".join(self.tryout_ports)}'
+            )
+
+        for _ in range(15):
+            try:
+                urlopen(f'http://localhost:{self.port}/not-existing-link-by-default')
+                return CheckResult.true()
+            except URLError as err:
+                if isinstance(err, HTTPError):
+                    return CheckResult.true()
+                sleep(1)
+        else:
+            return CheckResult.false(
+                'Cannot start the ./manage.py runserver for 15 seconds'
+            )
+
+    def __find_free_port(self):
+        for port in self.tryout_ports:
+            try:
+                urlopen(f'http://localhost:{port}')
+            except URLError as err:
+                if isinstance(err.reason, ConnectionRefusedError):
+                    self.port = port
+                    break
 
     def after_all_tests(self):
         if self.process is not None:
-            self._kill(self.process.pid, signal.SIGINT)
+            try:
+                self._kill(self.process.pid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
 
 
 class HypercarWelcomeToServiceTest(DjangoTest):
 
     def get_welcome_page(self) -> CheckResult:
-        for _ in range(3):
-            try:
-                main_page = urlopen('http://localhost:8000/welcome').read().decode()
-                if 'Welcome to the Hypercar service' in main_page:
-                    return CheckResult.true()
-                return CheckResult.false(
-                    'Main page should contain "Welcome to the Hypercar service" line'
-                )
-            except (URLError, HTTPError):
-                sleep(2)
-        return CheckResult.false(
-            'Cannot connect to the /welcome page.'
-        )
+        try:
+            main_page = urlopen(f'http://localhost:{self.port}/welcome').read().decode()
+            if 'Welcome to the Hypercar service' in main_page:
+                return CheckResult.true()
+            return CheckResult.false(
+                'Main page should contain "Welcome to the Hypercar service" line'
+            )
+        except URLError:
+            return CheckResult.false(
+                'Cannot connect to the /welcome page.'
+            )
 
     def generate(self):
         return [
+            TestCase(attach=self.check_server),
             TestCase(attach=self.get_welcome_page),
         ]
 
@@ -56,28 +92,27 @@ class HypercarClientMenuTest(DjangoTest):
     ELEMENT_PATTERN = '''<a[^>]+href=['"](?P<href>[a-zA-Z/_]+)['"][^>]*>'''
 
     def get_client_menu_page(self) -> CheckResult:
-        for _ in range(3):
-            try:
-                page = urlopen('http://localhost:8000/menu').read().decode()
-                links = re.findall(self.ELEMENT_PATTERN, page)
-                for link in (
-                    '/get_ticket/change_oil',
-                    '/get_ticket/inflate_tires',
-                    '/get_ticket/make_diagnostics',
-                ):
-                    if link not in links:
-                        return CheckResult.false(
-                            f'Menu page should contain <a> element with href {link}'
-                        )
-                return CheckResult.true()
-            except (URLError, HTTPError):
-                sleep(2)
-        return CheckResult.false(
-            'Cannot connect to the main page.'
-        )
+        try:
+            page = urlopen(f'http://localhost:{self.port}/menu').read().decode()
+            links = re.findall(self.ELEMENT_PATTERN, page)
+            for link in (
+                '/get_ticket/change_oil',
+                '/get_ticket/inflate_tires',
+                '/get_ticket/make_diagnostics',
+            ):
+                if link not in links:
+                    return CheckResult.false(
+                        f'Menu page should contain <a> element with href {link}'
+                    )
+            return CheckResult.true()
+        except URLError:
+            return CheckResult.false(
+                'Cannot connect to the /menu page.'
+            )
 
     def generate(self):
         return [
+            TestCase(attach=self.check_server),
             TestCase(attach=self.get_client_menu_page),
         ]
 
@@ -87,38 +122,23 @@ class HypercarClientMenuTest(DjangoTest):
 
 class HypercarElecronicQueueTest(DjangoTest):
 
-    def get_welcome_page(self) -> CheckResult:
-        for _ in range(3):
-            try:
-                main_page = urlopen('http://localhost:8000/welcome').read().decode()
-                if 'Welcome to the Hypercar service' in main_page:
-                    return CheckResult.true()
-                return CheckResult.false(
-                    'Main page should contain "Welcome to the Hypercar service" line'
-                )
-            except (URLError, HTTPError):
-                sleep(2)
-        return CheckResult.false(
-            'Cannot connect to the /welcome page.'
-        )
-
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:8000/get_ticket/{service}').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
             if content in page:
                 return CheckResult.true()
             else:
                 return CheckResult.false(
                     f'Expected to have {content} on /get_ticket/{service} page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /get_ticket/{service} page.'
             )
 
     def generate(self):
         return [
-            TestCase(attach=self.get_welcome_page),
+            TestCase(attach=self.check_server),
             TestCase(attach=partial(
                 self.get_ticket,
                 'inflate_tires',
@@ -157,31 +177,16 @@ class HypercarOperatorMenuTest(DjangoTest):
         'make_diagnostics': 'Make diagnostics queue',
     }
 
-    def get_welcome_page(self) -> CheckResult:
-        for _ in range(3):
-            try:
-                main_page = urlopen('http://localhost:8000/welcome').read().decode()
-                if 'Welcome to the Hypercar service' in main_page:
-                    return CheckResult.true()
-                return CheckResult.false(
-                    'Main page should contain "Welcome to the Hypercar service" line'
-                )
-            except (URLError, HTTPError):
-                sleep(2)
-        return CheckResult.false(
-            'Cannot connect to the /welcome page.'
-        )
-
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:8000/get_ticket/{service}').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
             if content in page:
                 return CheckResult.true()
             else:
                 return CheckResult.false(
                     f'Expected to have {content} on /get_ticket/{service} page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /get_ticket/{service} page.'
             )
@@ -192,21 +197,21 @@ class HypercarOperatorMenuTest(DjangoTest):
             if not result.result:
                 return result
 
-            page = urlopen(f'http://localhost:8000/processing').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/processing').read().decode()
             if menu_content in page:
                 return CheckResult.true()
             else:
                 return CheckResult.false(
                     f'Expected to have {menu_content} on /processing page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /processing page.'
             )
 
     def generate(self):
         return [
-            TestCase(attach=self.get_welcome_page),
+            TestCase(attach=self.check_server),
             TestCase(attach=partial(
                 self.check_menu,
                 'inflate_tires',
@@ -250,31 +255,16 @@ class HypercarServeNextTest(DjangoTest):
         'make_diagnostics': 'Make diagnostics queue',
     }
 
-    def get_welcome_page(self) -> CheckResult:
-        for _ in range(3):
-            try:
-                main_page = urlopen('http://localhost:8000/welcome').read().decode()
-                if 'Welcome to the Hypercar service' in main_page:
-                    return CheckResult.true()
-                return CheckResult.false(
-                    'Main page should contain "Welcome to the Hypercar service" line'
-                )
-            except (URLError, HTTPError):
-                sleep(2)
-        return CheckResult.false(
-            'Cannot connect to the /welcome page.'
-        )
-
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:8000/get_ticket/{service}').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
             if content in page:
                 return CheckResult.true()
             else:
                 return CheckResult.false(
                     f'Expected to have {content} on /get_ticket/{service} page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /get_ticket/{service} page.'
             )
@@ -285,14 +275,14 @@ class HypercarServeNextTest(DjangoTest):
             if not result.result:
                 return result
 
-            page = urlopen(f'http://localhost:8000/processing').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/processing').read().decode()
             if menu_content in page:
                 return CheckResult.true()
             else:
                 return CheckResult.false(
                     f'Expected to have {menu_content} on /processing page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /processing page.'
             )
@@ -309,7 +299,7 @@ class HypercarServeNextTest(DjangoTest):
                 if not result.result:
                     return result
 
-            page = urlopen('http://localhost:8000/next').read().decode()
+            page = urlopen(f'http://localhost:{self.port}/next').read().decode()
 
             if next_content in page:
                 return CheckResult.true()
@@ -317,13 +307,13 @@ class HypercarServeNextTest(DjangoTest):
                 return CheckResult.false(
                     f'Expected to have {next_content} on /next page'
                 )
-        except (URLError, HTTPError):
+        except URLError:
             return CheckResult.false(
                 f'Cannot connect to the /next page.'
             )
 
     def process_ticket(self):
-        response = urlopen(f'http://localhost:8000/processing')
+        response = urlopen(f'http://localhost:{self.port}/processing')
         csrf_options = re.findall(
             b'<input[^>]+value="(?P<csrf>\w+)"[^>]*>', response.read()
         )
@@ -336,7 +326,7 @@ class HypercarServeNextTest(DjangoTest):
         opener.addheaders.append(('Cookie', set_cookie))
         try:
             opener.open(
-                'http://localhost:8000/processing',
+                f'http://localhost:{self.port}/processing',
                 data=urlencode({'csrfmiddlewaretoken': csrf_options[0]}).encode()
             )
         except HTTPError:
@@ -347,7 +337,7 @@ class HypercarServeNextTest(DjangoTest):
 
     def generate(self):
         return [
-            TestCase(attach=self.get_welcome_page),
+            TestCase(attach=self.check_server),
             TestCase(attach=partial(
                 self.check_next,
                 'inflate_tires',
