@@ -68,10 +68,10 @@ class HypercarWelcomeToServiceTest(DjangoTest):
     def get_welcome_page(self) -> CheckResult:
         try:
             main_page = urlopen(f'http://localhost:{self.port}/welcome').read().decode()
-            if 'Welcome to the Hypercar service' in main_page:
+            if 'Welcome to the Hypercar Service!' in main_page:
                 return CheckResult.true()
             return CheckResult.false(
-                'Main page should contain "Welcome to the Hypercar service" line'
+                'Main page should contain "Welcome to the Hypercar Service!" line'
             )
         except URLError:
             return CheckResult.false(
