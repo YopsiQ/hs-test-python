@@ -55,6 +55,9 @@ class DjangoTest(StageTest):
                     self.port = port
                     break
 
+    def read_page(self, link: str) -> str:
+        return urlopen(link).read().decode().replace('\xc2\xa0', ' ')
+
     def after_all_tests(self):
         if self.process is not None:
             try:
@@ -67,7 +70,7 @@ class HypercarWelcomeToServiceTest(DjangoTest):
 
     def get_welcome_page(self) -> CheckResult:
         try:
-            main_page = urlopen(f'http://localhost:{self.port}/welcome').read().decode()
+            main_page = self.read_page(f'http://localhost:{self.port}/welcome')
             if 'Welcome to the Hypercar Service!' in main_page:
                 return CheckResult.true()
             return CheckResult.false(
@@ -93,7 +96,7 @@ class HypercarClientMenuTest(DjangoTest):
 
     def get_client_menu_page(self) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:{self.port}/menu').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/menu')
             links = re.findall(self.ELEMENT_PATTERN, page)
             for link in (
                 '/get_ticket/change_oil',
@@ -124,7 +127,7 @@ class HypercarElecronicQueueTest(DjangoTest):
 
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/get_ticket/{service}')
             if content in page:
                 return CheckResult.true()
             else:
@@ -179,7 +182,7 @@ class HypercarOperatorMenuTest(DjangoTest):
 
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/get_ticket/{service}')
             if content in page:
                 return CheckResult.true()
             else:
@@ -197,7 +200,7 @@ class HypercarOperatorMenuTest(DjangoTest):
             if not result.result:
                 return result
 
-            page = urlopen(f'http://localhost:{self.port}/processing').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/processing')
             if menu_content in page:
                 return CheckResult.true()
             else:
@@ -257,7 +260,7 @@ class HypercarServeNextTest(DjangoTest):
 
     def get_ticket(self, service: str, content: str) -> CheckResult:
         try:
-            page = urlopen(f'http://localhost:{self.port}/get_ticket/{service}').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/get_ticket/{service}')
             if content in page:
                 return CheckResult.true()
             else:
@@ -275,7 +278,7 @@ class HypercarServeNextTest(DjangoTest):
             if not result.result:
                 return result
 
-            page = urlopen(f'http://localhost:{self.port}/processing').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/processing')
             if menu_content in page:
                 return CheckResult.true()
             else:
@@ -299,7 +302,7 @@ class HypercarServeNextTest(DjangoTest):
                 if not result.result:
                     return result
 
-            page = urlopen(f'http://localhost:{self.port}/next').read().decode()
+            page = self.read_page(f'http://localhost:{self.port}/next')
 
             if next_content in page:
                 return CheckResult.true()
