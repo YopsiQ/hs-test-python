@@ -1,0 +1,9 @@
+{% block title %} Signup {% endblock %}
+{% block header %}{% endblock %}
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+	{{ form.as_ul }}
+	<input class="btn_spec" type="submit" value="Submit"/>
+</form>
+{% endblock %}
