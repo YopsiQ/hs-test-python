@@ -1,6 +1,0 @@
-{% if request.user.is_authenticated %}
-<form action="{% if request.user.is_staff %}/vacancy/new{% else %}/resume/new{% endif %}" method="post">
-    {% csrf_token %}
-    <input name="description">
-</form>
-{% endif %}
