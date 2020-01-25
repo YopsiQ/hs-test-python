@@ -79,12 +79,12 @@ class ModelsTestMixin(object):
                 INITIAL_USERS[len(INITIAL_VACANCIES):]
             )
             cursor.executemany(
-                'INSERT INTO vacancy_resume (`author_id`, `description`) VALUES (?, ?)',
+                'INSERT INTO resume_resume (`author_id`, `description`) VALUES (?, ?)',
                 INITIAL_RESUMES
             )
             connection.commit()
 
-            cursor.execute('SELECT `author_id`, `description` FROM vacancy_resume')
+            cursor.execute('SELECT `author_id`, `description` FROM resume_resume')
             result = cursor.fetchall()
 
             for item in INITIAL_RESUMES:
@@ -94,192 +94,6 @@ class ModelsTestMixin(object):
 
         except sqlite3.DatabaseError as err:
             return CheckResult.false(str(err))
-
-
-class HyperJobModelsTest(DjangoTest, ModelsTestMixin):
-    def generate(self):
-        return [
-            TestCase(attach=self.check_server),
-            TestCase(attach=self.check_create_vacancies),
-            TestCase(attach=self.check_create_resumes),
-        ]
-
-    def check(self, reply, attach):
-        return attach()
-
-
-class HyperJobMenuTest(DjangoTest, ModelsTestMixin):
-    ELEMENT_PATTERN = '''<a[^>]+href=['"](?P<href>[a-zA-Z/_]+)['"][^>]*>'''
-
-    def check_greeting(self) -> CheckResult:
-        try:
-            main_page = self.read_page(f'http://localhost:{self.port}')
-            if 'Welcome to Hyperjob!' in main_page:
-                return CheckResult.true()
-            return CheckResult.false(
-                'Main page should contain "Welcome to Hyperjob!" line'
-            )
-        except urllib.error.URLError:
-            return CheckResult.false(
-                'Cannot connect to the menu page.'
-            )
-
-    def check_links(self) -> CheckResult:
-        try:
-            page = self.read_page(f'http://localhost:{self.port}')
-            links = re.findall(self.ELEMENT_PATTERN, page)
-            for link in (
-                '/login',
-                '/signup',
-                '/vacancies',
-                '/resumes',
-                '/home',
-            ):
-                if link not in links:
-                    return CheckResult.false(
-                        f'Menu page should contain <a> element with href {link}'
-                    )
-            return CheckResult.true()
-        except urllib.error.URLError:
-            return CheckResult.false(
-                'Cannot connect to the menu page.'
-            )
-
-    def generate(self):
-        return [
-            TestCase(attach=self.check_server),
-            TestCase(attach=self.check_create_vacancies),
-            TestCase(attach=self.check_create_resumes),
-            TestCase(attach=self.check_greeting),
-            TestCase(attach=self.check_links),
-        ]
-
-    def check(self, reply, attach):
-        return attach()
-
-
-class HyperJobItemsPageTest(DjangoTest, ModelsTestMixin):
-    def check_vacancies(self) -> CheckResult:
-        try:
-            page = self.read_page(f'http://localhost:{self.port}/vacancies')
-            for person, vacancy in zip(INITIAL_USERS, INITIAL_VACANCIES):
-                description = f'{person[1]}: {vacancy[1]}'
-                if description not in page:
-                    return CheckResult.false(
-                        f'Vacancies page should contain vacancies in form <username>: <description>'
-                    )
-            return CheckResult.true()
-        except urllib.error.URLError:
-            return CheckResult.false(
-                'Cannot connect to the vacancies page.'
-            )
-
-    def check_resumes(self) -> CheckResult:
-        try:
-            page = self.read_page(f'http://localhost:{self.port}/resumes')
-            for person, resume in zip(INITIAL_USERS[len(INITIAL_VACANCIES):], INITIAL_RESUMES):
-                description = f'{person[1]}: {resume[1]}'
-                if description not in page:
-                    return CheckResult.false(
-                        f'Resumes page should contain resumes in form <username>: <description>'
-                    )
-            return CheckResult.true()
-        except urllib.error.URLError:
-            return CheckResult.false(
-                'Cannot connect to the resumes page.'
-            )
-
-    def generate(self):
-        return [
-            TestCase(attach=self.check_server),
-            TestCase(attach=self.check_create_vacancies),
-            TestCase(attach=self.check_create_resumes),
-            TestCase(attach=self.check_vacancies),
-            TestCase(attach=self.check_resumes),
-        ]
-
-    def check(self, reply, attach):
-        return attach()
-
-
-class HyperJobLoginTest(DjangoTest, ModelsTestMixin):
-    USERNAME = 'Sparrow_1949'
-    PASSWORD = 's<myW8Dh'
-
-    def check_signup(self) -> CheckResult:
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.cookie_jar)
-        )
-        try:
-            response = opener.open(f'http://localhost:{self.port}/signup')
-        except urllib.error.URLError:
-            return CheckResult.false('Cannot connect to the signup page.')
-
-        csrf_options = re.findall(
-            b'<input[^>]+value="(?P<csrf>\w+)"[^>]*>', response.read()
-        )
-        if not csrf_options:
-            return CheckResult.false('Missing csrf_token in the form')
-
-        try:
-            response = opener.open(
-                f'http://localhost:{self.port}/signup',
-                data=urllib.parse.urlencode({
-                    'csrfmiddlewaretoken': csrf_options[0],
-                    'username': self.USERNAME,
-                    'password1': self.PASSWORD,
-                    'password2': self.PASSWORD,
-                }).encode()
-            )
-            if f'login' in response.url:
-                return CheckResult.true()
-            return CheckResult.false('Cannot signup: problems with form')
-        except urllib.error.URLError as err:
-            return CheckResult.false(f'Cannot signup: {err.reason}')
-
-    def check_login(self) -> CheckResult:
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.cookie_jar)
-        )
-        try:
-            response = opener.open(f'http://localhost:{self.port}/login')
-        except urllib.error.URLError:
-            return CheckResult.false('Cannot connect to the login page.')
-
-        csrf_options = re.findall(
-            b'<input[^>]+value="(?P<csrf>\w+)"[^>]*>', response.read()
-        )
-        if not csrf_options:
-            return CheckResult.false('Missing csrf_token in the form')
-
-        try:
-            response = opener.open(
-                f'http://localhost:{self.port}/login',
-                data=urllib.parse.urlencode({
-                    'csrfmiddlewaretoken': csrf_options[0],
-                    'username': self.USERNAME,
-                    'password': self.PASSWORD,
-                }).encode()
-            )
-            if 'login' not in response.url:
-                return CheckResult.true()
-            return CheckResult.false('Cannot login: problems with form')
-        except urllib.error.URLError as err:
-            return CheckResult.false(f'Cannot login: {err.reason}')
-
-    def generate(self):
-        self.cookie_jar = http.cookiejar.CookieJar()
-
-        return [
-            TestCase(attach=self.check_server),
-            TestCase(attach=self.check_create_vacancies),
-            TestCase(attach=self.check_create_resumes),
-            TestCase(attach=self.check_signup),
-            TestCase(attach=self.check_login),
-        ]
-
-    def check(self, reply, attach):
-        return attach()
 
 
 class HyperJobCreateItemTest(DjangoTest, ModelsTestMixin):
@@ -471,3 +285,7 @@ class HyperJobCreateItemTest(DjangoTest, ModelsTestMixin):
 
     def check(self, reply, attach):
         return attach()
+
+
+if __name__ == '__main__':
+    HyperJobCreateItemTest('hyperjob.manage').run_tests()

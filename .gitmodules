@@ -1,0 +1,15 @@
+[submodule "hyperjob/stage1/hstest"]
+	path = hyperjob/stage1/hstest
+	url = https://github.com/hyperskill/hs-test-python
+[submodule "hyperjob/stage2/hstest"]
+	path = hyperjob/stage2/hstest
+	url = https://github.com/hyperskill/hs-test-python
+[submodule "hyperjob/stage3/hstest"]
+	path = hyperjob/stage3/hstest
+	url = https://github.com/hyperskill/hs-test-python
+[submodule "hyperjob/stage4/hstest"]
+	path = hyperjob/stage4/hstest
+	url = https://github.com/hyperskill/hs-test-python
+[submodule "hyperjob/stage5/hstest"]
+	path = hyperjob/stage5/hstest
+	url = https://github.com/hyperskill/hs-test-python
