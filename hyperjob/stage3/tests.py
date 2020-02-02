@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from hstest.test_case import TestCase
 
-from .base import HyperJobTest
+from base import HyperJobTest
 
 class HyperJobTestRunner(HyperJobTest):
     def generate(self):
