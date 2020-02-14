@@ -89,7 +89,7 @@ class HyperJobTest(DjangoTest):
                 'INSERT INTO auth_user '
                 '(`id`, `username`, `email`, `is_staff`, `password`, `is_superuser`, '
                 '`first_name`, `last_name`, `is_active`, `date_joined`) '
-                'VALUES (?, ?, ?, ?, "", false, "", "", true, datetime())',
+                'VALUES (?, ?, ?, ?, "", 0, "", "", 1, datetime())',
                 INITIAL_USERS[len(INITIAL_VACANCIES):]
             )
             cursor.executemany(
@@ -150,29 +150,30 @@ class HyperJobTest(DjangoTest):
         if not csrf_options:
             return CheckResult.true()
 
+        OTHER_OCCUPATION = 'Marketing Coordinator'
+
         try:
             response = opener.open(
                 f'http://localhost:{self.port}/resume/new',
                 data=urllib.parse.urlencode({
-                    'description': self.OCCUPATION,
+                    'description': OTHER_OCCUPATION,
                     'csrfmiddlewaretoken': csrf_options[0],
                 }).encode()
             )
             return CheckResult.false('Should not allow anonymous users create resumes')
         except urllib.error.URLError as err:
             if 'Forbidden' not in err.reason:
-                return CheckResult.false(f'Wrong respose for forbidden requests: {err.reason}')
+                return CheckResult.false(f'Wrong response for forbidden requests: {err.reason}')
 
         try:
             page = self.read_page(f'http://localhost:{self.port}/resumes')
-            description = f'{self.USERNAME}: {self.OCCUPATION}'
-            if description in page:
+            if OTHER_OCCUPATION in page:
                 return CheckResult.false(
                     f'Resumes page should not contain resumes from anonymous users'
                 )
             return CheckResult.true()
         except urllib.error.URLError:
-            return CheckResult.false('Cannot connect to the vacancies page.')
+            return CheckResult.false('Cannot connect to the resumes page.')
 
     def check_forbid_to_create_vacancy(self) -> CheckResult:
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie_jar))
@@ -187,23 +188,24 @@ class HyperJobTest(DjangoTest):
         if not csrf_options:
             return CheckResult.true()
 
+        OTHER_OCCUPATION = 'Marketing Coordinator'
+
         try:
             response = opener.open(
                 f'http://localhost:{self.port}/vacancy/new',
                 data=urllib.parse.urlencode({
-                    'description': self.OCCUPATION,
+                    'description': OTHER_OCCUPATION,
                     'csrfmiddlewaretoken': csrf_options[0],
                 }).encode()
             )
             return CheckResult.false('Should not allow usual users create vacancies')
         except urllib.error.URLError as err:
             if 'Forbidden' not in err.reason:
-                return CheckResult.false(f'Wrong respose for forbidden requests: {err.reason}')
+                return CheckResult.false(f'Wrong response for forbidden requests: {err.reason}')
 
         try:
             page = self.read_page(f'http://localhost:{self.port}/vacancies')
-            description = f'{self.USERNAME}: {self.OCCUPATION}'
-            if description in page:
+            if OTHER_OCCUPATION in page:
                 return CheckResult.false(
                     f'Vacancies page should not contain vacancies from usual users'
                 )
@@ -214,10 +216,10 @@ class HyperJobTest(DjangoTest):
     def check_greeting(self) -> CheckResult:
         try:
             main_page = self.read_page(f'http://localhost:{self.port}')
-            if 'Welcome to Hyperjob!' in main_page:
+            if 'Welcome to HyperJob!' in main_page:
                 return CheckResult.true()
             return CheckResult.false(
-                'Main page should contain "Welcome to Hyperjob!" line'
+                'Main page should contain "Welcome to HyperJob!" line'
             )
         except urllib.error.URLError:
             return CheckResult.false(
